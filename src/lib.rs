@@ -1,5 +1,7 @@
 use log::info;
 use std::error::Error;
+use glow::HasContext;
+use std::{thread,time};
 #[cfg_attr(
     target_os="android",
     ndk_glue::main(
@@ -103,18 +105,51 @@ egl_ins.create_window_surface(display,config,native_window_ptr as egl::NativeWin
 
     // < Loading all gl functions
     info!("Loading gl functions");
-    unsafe {
-        glow::Context::from_loader_function(|name|{
+    let gl = unsafe {
+        glow::Context::from_loader_function_with_version_parse(
+        |version_str|{
+            // TODO
+            info!("gl version {:?}",version_str);
+            Ok(
+                 glow::Version {
+                 major: 1,
+                 minor: 0,
+                 is_embedded: true,
+                 revision: None,
+                 vendor_info: "tzz".to_string(),
+            }
+
+                )
+        }
+            ,
+        |name|{
                 info!("Loading {:?}",name);
                 egl_ins.get_proc_address(name).
                     map_or(std::ptr::null(),|ptr|{
                         info!("Loaded {:?} {:?}",name,ptr);
                         ptr as *const _
                     })
-            })
+            }).map_err(
+                    |e|{
+                        info!("{:?}",e);
+                        e
+                    }
+                )?
     };
     info!("Loaded gl functions");
     // >
+    
+    let duration = time::Duration::from_millis(500);
+    loop {
+        info!("Drawing");
+        unsafe{
+            gl.clear_color(0.1,0.2,0.3,1.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
+            egl_ins.swap_buffers(display,surface);
+        };
+        info!("Drawed");
+        thread::sleep(duration);
+    };
     Ok(())
 
 }
